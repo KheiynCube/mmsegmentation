@@ -42,7 +42,7 @@ class CustomDataset(Dataset):
     ``xxx{img_suffix}`` and ``xxx{seg_map_suffix}`` (extension is also included
     in the suffix). If split is given, then ``xxx`` is specified in txt file.
     Otherwise, all files in ``img_dir/``and ``ann_dir`` will be loaded.
-    Please refer to ``docs/tutorials/new_dataset.md`` for more details.
+    Please refer to ``docs/en/tutorials/new_dataset.md`` for more details.
 
 
     Args:
@@ -319,7 +319,7 @@ class CustomDataset(Dataset):
             raise ValueError(f'Unsupported type {type(classes)} of classes.')
 
         if self.CLASSES:
-            if not set(classes).issubset(self.CLASSES):
+            if not set(class_names).issubset(self.CLASSES):
                 raise ValueError('classes is not a subset of CLASSES.')
 
             # dictionary, its keys are the old label ids and its values
@@ -330,7 +330,7 @@ class CustomDataset(Dataset):
                 if c not in class_names:
                     self.label_map[i] = -1
                 else:
-                    self.label_map[i] = classes.index(c)
+                    self.label_map[i] = class_names.index(c)
 
         palette = self.get_palette_for_custom_classes(class_names, palette)
 
@@ -349,7 +349,16 @@ class CustomDataset(Dataset):
 
         elif palette is None:
             if self.PALETTE is None:
+                # Get random state before set seed, and restore
+                # random state later.
+                # It will prevent loss of randomness, as the palette
+                # may be different in each iteration if not specified.
+                # See: https://github.com/open-mmlab/mmdetection/issues/5844
+                state = np.random.get_state()
+                np.random.seed(42)
+                # random palette
                 palette = np.random.randint(0, 255, size=(len(class_names), 3))
+                np.random.set_state(state)
             else:
                 palette = self.PALETTE
 

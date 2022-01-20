@@ -54,7 +54,26 @@ def parse_args():
         help='tmp directory used for collecting results from multiple '
         'workers, available when gpu_collect is not specified')
     parser.add_argument(
-        '--options', nargs='+', action=DictAction, help='custom options')
+        '--options',
+        nargs='+',
+        action=DictAction,
+        help="--options is deprecated in favor of --cfg_options' and it will "
+        'not be supported in version v0.22.0. Override some settings in the '
+        'used config, the key-value pair in xxx=yyy format will be merged '
+        'into config file. If the value to be overwritten is a list, it '
+        'should be like key="[a,b]" or key=a,b It also allows nested '
+        'list/tuple values, e.g. key="[(a,b),(c,d)]" Note that the quotation '
+        'marks are necessary and that no white space is allowed.')
+    parser.add_argument(
+        '--cfg-options',
+        nargs='+',
+        action=DictAction,
+        help='override some settings in the used config, the key-value pair '
+        'in xxx=yyy format will be merged into config file. If the value to '
+        'be overwritten is a list, it should be like key="[a,b]" or key=a,b '
+        'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
+        'Note that the quotation marks are necessary and that no white space '
+        'is allowed.')
     parser.add_argument(
         '--eval-options',
         nargs='+',
@@ -74,12 +93,22 @@ def parse_args():
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
+
+    if args.options and args.cfg_options:
+        raise ValueError(
+            '--options and --cfg-options cannot be both '
+            'specified, --options is deprecated in favor of --cfg-options. '
+            '--options will not be supported in version v0.22.0.')
+    if args.options:
+        warnings.warn('--options is deprecated in favor of --cfg-options. '
+                      '--options will not be supported in version v0.22.0.')
+        args.cfg_options = args.options
+
     return args
 
 
 def main():
     args = parse_args()
-
     assert args.out or args.eval or args.format_only or args.show \
         or args.show_dir, \
         ('Please specify at least one operation (save/eval/format/show the '
@@ -93,8 +122,8 @@ def main():
         raise ValueError('The output file must be a pkl file.')
 
     cfg = mmcv.Config.fromfile(args.config)
-    if args.options is not None:
-        cfg.merge_from_dict(args.options)
+    if args.cfg_options is not None:
+        cfg.merge_from_dict(args.cfg_options)
     # set cudnn_benchmark
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
@@ -119,7 +148,23 @@ def main():
     if args.work_dir is not None and rank == 0:
         mmcv.mkdir_or_exist(osp.abspath(args.work_dir))
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-        json_file = osp.join(args.work_dir, f'eval_{timestamp}.json')
+        if args.aug_test:
+            json_file = osp.join(args.work_dir,
+                                 f'eval_multi_scale_{timestamp}.json')
+        else:
+            json_file = osp.join(args.work_dir,
+                                 f'eval_single_scale_{timestamp}.json')
+    elif rank == 0:
+        work_dir = osp.join('./work_dirs',
+                            osp.splitext(osp.basename(args.config))[0])
+        mmcv.mkdir_or_exist(osp.abspath(work_dir))
+        timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+        if args.aug_test:
+            json_file = osp.join(work_dir,
+                                 f'eval_multi_scale_{timestamp}.json')
+        else:
+            json_file = osp.join(work_dir,
+                                 f'eval_single_scale_{timestamp}.json')
 
     # build the dataloader
     # TODO: support multiple images per gpu (only minor changes are needed)
@@ -218,8 +263,7 @@ def main():
             eval_kwargs.update(metric=args.eval)
             metric = dataset.evaluate(results, **eval_kwargs)
             metric_dict = dict(config=args.config, metric=metric)
-            if args.work_dir is not None and rank == 0:
-                mmcv.dump(metric_dict, json_file, indent=4)
+            mmcv.dump(metric_dict, json_file, indent=4)
             if tmpdir is not None and eval_on_format_results:
                 # remove tmp dir when cityscapes evaluation
                 shutil.rmtree(tmpdir)
