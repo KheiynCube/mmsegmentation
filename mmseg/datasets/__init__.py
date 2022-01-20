@@ -24,10 +24,7 @@ __all__ = [
     'PascalVOCDataset', 'ADE20KDataset', 'PascalContextDataset',
     'PascalContextDataset59', 'ChaseDB1Dataset', 'DRIVEDataset', 'HRFDataset',
     'STAREDataset', 'DarkZurichDataset', 'NightDrivingDataset',
-<<<<<<< HEAD
-    'COCOStuffDataset', 'MangaDataset',
-=======
     'COCOStuffDataset', 'LoveDADataset', 'MultiImageMixDataset',
-    'PotsdamDataset'
->>>>>>> 7512f05990eb66bba3653cb4d5f478965bf41bd7
+    'PotsdamDataset',
+    'MangaDataset'
 ]
